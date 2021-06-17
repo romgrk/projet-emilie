@@ -2,10 +2,6 @@ let slider;
 let buttonControl;
 let buttonRandom;
 
-let numberOfSongs = 3;
-let numberOfTexts = 3;
-let currentSong;
-
 let amp;
 let fft;
 let volume;
@@ -16,7 +12,6 @@ let marginX = 20;
 let marginY = 30;
 let charWidth = 0 ;
 let totalcharWidth = 10;
-let splitString ;
 
 let choice = 1;
 let font ;
@@ -36,33 +31,28 @@ let infoFontSize = 15;
 let lineJump;
 let down;
 
-let energyMatrix = new Array();
-let prevSpectrum = new Array();
+let energyMatrix = [];
+let prevSpectrum = [];
 
-let songsList = new Array(numberOfSongs);
-let textsList = new Array(numberOfTexts);
+let songsList = [];
+let textsList = [];
 
+const songPaths = [
+  ['creepy.mp3',         'text1.txt'],
+  ['funnysong.mp3',      'text2.txt'],
+  ['psychedelic.mp3',    'text3.txt'],
+  ['theduel.mp3',        'text4.txt'],
+]
 
-// Arrays and variable for advancingLine function
-let numberOfLines = 7;
-let myLines = new Array(numberOfLines);
-
-
-
-
-
-
+let currentSong;
+let currentText;
 
 
 // The rest is for the animation and the song playing
 // Upload the songs and the infos here
 function preload() {
-  songsList[0] = loadSound('creepy.mp3');
-  songsList[1] = loadSound('funnysong.mp3');
-  songsList[2] = loadSound('theduel.mp3');
-  textsList[0] = loadStrings("text1.txt");
-  textsList[1] = loadStrings("text2.txt");
-  textsList[2] = loadStrings("text3.txt");
+  songsList = songPaths.map(p => loadSound(p[0]))
+  textsList = songPaths.map(p => loadStrings(p[1]))
 }
 
 
@@ -71,16 +61,12 @@ function setup() {
   smooth();
   font = "carbon";                               // Here, change the font
 
-
-
-
   amp = new p5.Amplitude();
-
   fft = new p5.FFT();
 
   peakDetect = new p5.PeakDetect(0,20, 0.4);    //Here, change between wich and which Bin (0-1024) to get a peak, and the treshold (0-1.0)
 
-//For the "ColorChanger" changer
+  // For the "ColorChanger" changer
   color1 = color(178, 77, 178);                 // Here, change the color the background will have
   color2 = color(141, 84, 141);
   color3 = color(158, 97, 158);
@@ -88,7 +74,7 @@ function setup() {
   backColor = color(116,83,116);
 
   slider = createSlider(0, 1, 0.5, 0.1);
-//Set the Pause Play button
+  // Set the Pause Play button
   buttonControl = createButton("Pause");
   buttonControl.mousePressed(pauseNplay);
 
@@ -96,71 +82,75 @@ function setup() {
   // Set the Songs buttons
   buttonRandom = createButton("random");
   buttonRandom.mousePressed(randomise);
-
-  currentSong = 2;                              // Here, change the song that will first play
-  songsList[currentSong].play();
-
 }
-
-
-
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
-
 function draw() {
-
-
   //backColor = color(RbackColor, GbackColor, BbackColor);
   background(backColor);
 
+  if (!currentSong)
+    return
 
+  currentSong.setVolume(slider.value())
 
-  songsList[currentSong].setVolume(slider.value());
-//I do not used the volume... but you never know
+  // I do not used the volume... but you never know
   volume = amp.getLevel();
+  const factor = (volume / slider.value()) * 2
+  console.log(slider.value(), volume, factor)
+  backColor = getColor(factor)
 
   spectrum = fft.analyze();
   peakDetect.update(fft);
   fft.smooth(0.8);
 
-  if(peakDetect.isDetected){
-    colorChanger2();
-  }
+  // if (peakDetect.isDetected){
+  //   colorChanger2();
+  // }
 
-// Used in the animation functions to have the letters of the song tittle separate
-  splitString = songsList[currentSong].file.split("");
-  freq = int(1024 / (splitString.length+1));
+  // Used in the animation functions to have the letters of the song tittle separate
+  const title = currentSong.file.replace('.mp3', '')
+  freq = int(1024 / (title.length + 1))
 
-// The animation choice is made when "random button" is clicked
-  if( choice == 0)wallPaperLetters();
-  if( choice == 1)normalText();
+  // The animation choice is made when "random button" is clicked
+  if (choice == 0) wallPaperLetters(title);
+  if (choice == 1) normalText(title);
 
   //textInfoSlide();                                   //Here, change the way the info text will be displayed
   textInfoAll();
-
-
-
-
-
 }
 
+function getColor(volume) {
+  colorMode(HSL, 100);
+
+  // hsl(300deg 17% 39%)
+
+  const h = (300 / 360) * 100
+  const c = color(
+    h,
+    17,
+    40 + (50 * volume)
+  )
+
+  colorMode(RGB, 255);
+
+  return c
+}
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
 
 
 //---------------Button Functions----------------
 
 function pauseNplay() {
 
-  if (!songsList[currentSong].isPlaying()) {
-    songsList[currentSong].play();
+  if (!currentSong.isPlaying()) {
+    currentSong.play();
     buttonControl.html("Pause");
   }
   else{
-    songsList[currentSong].pause();
+    currentSong.pause();
     buttonControl.html("Play");
   }
 }
@@ -169,10 +159,17 @@ function pauseNplay() {
 function randomise(){
 
   background(backColor);
-  songsList[currentSong].stop();
+
   buttonControl.html("Pause");
-  currentSong = floor(random(0,3));
-  songsList[currentSong].play();
+
+  if (currentSong)
+    currentSong.stop();
+
+  const index = floor(random(0, songsList.length))
+
+  currentText = textsList[index];
+  currentSong = songsList[index];
+  currentSong.play();
 
   choice = int(random(0,2));
 
@@ -182,48 +179,41 @@ function randomise(){
 }
 
 
-
-
-
-
-
 // ---------------- Animation Function -------------------------
-function wallPaperLetters(){
-
+function wallPaperLetters(songName) {
   background(backColor);
   fill(0);
   strokeWeight(1);
-  let i;
-  let nbLetterX = (splitString.length );
-  let nbLetterY = 10;
+
+  const lineCount = 10
+
+  // Array with numbers from 0-9
+  const lines = Array.from({ length: lineCount }, (_, i) => i)
+  // Array with letters
+  const chars = songName.split('')
 
   textFont(font);
 
-  for( let j = 0 ; j < nbLetterY; j ++){
-    for(let m = 0 ; m < nbLetterX; m ++){
+  lines.forEach(line => {
 
- // The "i+1" is to cut out the first chunk of freq, because they are too fidgety
+    chars.forEach((char, i) => {
+
+      // The "i+1" is to cut out the first chunk of freq, because they are too fidgety
       textSize(spectrum[freq*(i+1)]);
       //angleRotation = PI/ i *10;
 
-
       push();
-      translate(((width-marginX*2)/nbLetterX) * m + 2*marginX , ((height - infoBoxThickness - marginY)/nbLetterY)*j + marginY*2 + infoBoxThickness );
-     // rotate(angleRotation);
-      text(splitString[i], 0, 0);
+      const x = ((width-marginX*2)/chars.length) * i + 2*marginX 
+      const y = ((height - infoBoxThickness - marginY)/lineCount)*line + marginY*2 + infoBoxThickness
+      translate(x, y);
+      // rotate(angleRotation);
+      text(char, 0, 0);
       pop();
-
- // "-5" to erase the ".mp3" letters from the song tittle
-      if((i +1) < splitString.length-4) i++;
-      else i = 0;    }
-
-  }
+    })
+  })
 }
 
-
-
-function normalText(){
-
+function normalText(songName) {
   background(backColor);
   textFont(font);
   fill(0);
@@ -232,16 +222,16 @@ function normalText(){
 
 
 
-  for (let j = 0 ; j < splitString.length -4 ; j++){
+  for (let j = 0 ; j < songName.length -4 ; j++){
 
-    charWidth += textWidth(splitString[j]*2);
+    charWidth += textWidth(songName[j]*2);
 
     push();
     translate((width-totalcharWidth)/2, (height-infoBoxThickness)/2 + infoBoxThickness);
     textAlign(CENTER);
     textSize(spectrum[freq*(j+1)]);
-    text(splitString[j], charWidth, 0);
-    charWidth += textWidth(splitString[j]);
+    text(songName[j], charWidth, 0);
+    charWidth += textWidth(songName[j]);
     pop();
 
   }
@@ -268,14 +258,14 @@ function textInfoSlide(){
 
     if(mouseY < infoBoxThickness){
       if(mouseX > width/2){
-        text(textsList[currentSong], 20-pushText, 50);
+        text(currentText, 20-pushText, 50);
       }
 
       pushText += 1 ;                                        // Change the rate of the moving text here
     }
 
 // if the mouse is not up in the window, the text is stable
-    else text(textsList[currentSong], 20-pushText, 50);
+    else text(currentText, 20-pushText, 50);
 
 }
 
@@ -295,9 +285,9 @@ function textInfoAll() {
   fill(0);
   color(0);
 
-  for(let h = 0; h < textsList[currentSong].length ; h++){
+  for(let h = 0; h < currentText.length ; h++){
 
-    text(textsList[currentSong][h], width/2, marginX + lineJump * h);
+    text(currentText[h], width/2, marginX + lineJump * h);
 
 
   // Ajust the height of the info box to the size of the text
@@ -311,34 +301,6 @@ function textInfoAll() {
   }
 }
 
-
-
- function colorChanger1(){
-
-  let spectIndex = 200;
-  let spectChange = spectrum[spectIndex]/10;
-
-
-   if (prevSpectrum[spectIndex] < spectrum[spectIndex]){
-      RbackColor -=  spectChange;
-      GbackColor -=  spectChange;
-      BbackColor -=  spectChange;
-   }
-
-   else if (prevSpectrum[spectIndex] > spectrum[spectIndex]){
-      RbackColor +=  spectChange;
-      GbackColor += spectChange ;
-      BbackColor += spectChange ;
-    }
-
-    // if(prevSpectrum[spectIndex] == spectrum[spectIndex]){
-    //   RbackColor =  116;
-    //   GbackColor = 83;
-    //   BbackColor = 116;
-    // }
-    prevSpectrum[spectIndex] = spectrum[spectIndex];
-
-  }
 
 
   function colorChanger2(){
@@ -362,7 +324,7 @@ function mostEnergyBinFinder(){
   let energySum = new Array();
   let nbBins = 1024;
   let mostEnergyBin;
-  duration = songsList[currentSong].duration();
+  duration = currentSong.duration();
 
 
   for(let b = 0 ; b < amountLoops ; b++){
